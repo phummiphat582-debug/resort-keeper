@@ -12,6 +12,7 @@ import { RoomModal } from './components/RoomModal';
 import { AcCleanModal } from './components/AcCleanModal';
 import { AddRepairModal } from './components/AddRepairModal';
 import { RoomCalendarModal } from './components/RoomCalendarModal';
+import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { Sparkles } from 'lucide-react';
 
 export function App() {
@@ -124,6 +125,9 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
+      {/* PWA Install Banner */}
+      <PwaInstallPrompt />
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 right-4 z-50 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-4 duration-200">

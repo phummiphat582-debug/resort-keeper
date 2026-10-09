@@ -26,9 +26,11 @@ export const Navbar: React.FC<Props> = ({
         {/* Upper Bar: Brand & System Settings */}
         <div className="flex items-center justify-between py-3 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center shadow-md shadow-emerald-500/20">
-              <Wind className="w-6 h-6" />
-            </div>
+            <img
+              src="./icon-192.png"
+              alt="Resort Keeper Logo"
+              className="w-10 h-10 rounded-xl shadow-md shadow-emerald-600/20 object-cover border border-emerald-600/20"
+            />
             <div>
               <h1 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                 ปฏิทินแม่บ้าน & ล้างแอร์รีสอร์ท
