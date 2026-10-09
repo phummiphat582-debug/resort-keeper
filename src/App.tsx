@@ -80,24 +80,33 @@ export function App() {
       .channel('resort-realtime-changes')
       .on(
         'postgres_changes',
+        { event: '*', schema: 'api', table: 'rooms' },
+        () => loadData()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'api', table: 'occupancies' },
+        () => loadData()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'api', table: 'maintenance_logs' },
+        () => loadData()
+      )
+      .on(
+        'postgres_changes',
         { event: '*', schema: 'public', table: 'rooms' },
-        () => {
-          loadData();
-        }
+        () => loadData()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'occupancies' },
-        () => {
-          loadData();
-        }
+        () => loadData()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'maintenance_logs' },
-        () => {
-          loadData();
-        }
+        () => loadData()
       )
       .subscribe();
 
