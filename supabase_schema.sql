@@ -1,5 +1,5 @@
 -- ==========================================
--- สคริปต์สร้างฐานข้อมูล Supabase สำหรับระบบรีสอร์ท
+-- สคริปต์สร้างฐานข้อมูล Supabase สำหรับระบบรีสอร์ท (ไม่มีข้อมูลเดโม่)
 -- คัดลอกข้อความทั้งหมดนี้ไปวางในเมนู SQL Editor ของ Supabase แล้วกด "RUN"
 -- ==========================================
 
@@ -67,28 +67,3 @@ BEGIN
   EXCEPTION WHEN others THEN NULL;
   END;
 END $$;
-
--- 6. ใส่ข้อมูลตัวอย่างบ้านพัก 6 หลัง (หากยังไม่มีข้อมูล)
-INSERT INTO public.rooms (name, ac_days_used, last_ac_cleaned_date, status, ac_model)
-SELECT 'บ้าน 1 (ริมธาร)', 88, CURRENT_DATE - INTERVAL '90 days', 'available', 'Daikin Inverter 18000 BTU'
-WHERE NOT EXISTS (SELECT 1 FROM public.rooms WHERE name = 'บ้าน 1 (ริมธาร)');
-
-INSERT INTO public.rooms (name, ac_days_used, last_ac_cleaned_date, status, ac_model)
-SELECT 'บ้าน 2 (ริมธาร)', 45, CURRENT_DATE - INTERVAL '50 days', 'available', 'Daikin Inverter 18000 BTU'
-WHERE NOT EXISTS (SELECT 1 FROM public.rooms WHERE name = 'บ้าน 2 (ริมธาร)');
-
-INSERT INTO public.rooms (name, ac_days_used, last_ac_cleaned_date, status, ac_model)
-SELECT 'บ้าน 3 (สวนป่า)', 92, CURRENT_DATE - INTERVAL '100 days', 'available', 'Mitsubishi Mr.Slim 12000 BTU'
-WHERE NOT EXISTS (SELECT 1 FROM public.rooms WHERE name = 'บ้าน 3 (สวนป่า)');
-
-INSERT INTO public.rooms (name, ac_days_used, last_ac_cleaned_date, status, ac_model)
-SELECT 'บ้าน 4 (สวนป่า)', 12, CURRENT_DATE - INTERVAL '15 days', 'available', 'Mitsubishi Mr.Slim 12000 BTU'
-WHERE NOT EXISTS (SELECT 1 FROM public.rooms WHERE name = 'บ้าน 4 (สวนป่า)');
-
-INSERT INTO public.rooms (name, ac_days_used, last_ac_cleaned_date, status, ac_model)
-SELECT 'บ้าน 5 (พูลวิลล่า)', 78, CURRENT_DATE - INTERVAL '80 days', 'available', 'Carrier XInverter Plus 24000 BTU'
-WHERE NOT EXISTS (SELECT 1 FROM public.rooms WHERE name = 'บ้าน 5 (พูลวิลล่า)');
-
-INSERT INTO public.rooms (name, ac_days_used, last_ac_cleaned_date, status, ac_model)
-SELECT 'บ้าน 6 (พูลวิลล่า)', 5, CURRENT_DATE - INTERVAL '8 days', 'available', 'Carrier XInverter Plus 24000 BTU'
-WHERE NOT EXISTS (SELECT 1 FROM public.rooms WHERE name = 'บ้าน 6 (พูลวิลล่า)');

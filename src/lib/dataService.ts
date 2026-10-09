@@ -4,91 +4,28 @@ import type { Room, OccupancyRecord, MaintenanceLog } from '../types';
 const STORAGE_KEY_ROOMS = 'resort_data_rooms';
 const STORAGE_KEY_OCCUPANCIES = 'resort_data_occupancies';
 const STORAGE_KEY_LOGS = 'resort_data_maintenance_logs';
+const STORAGE_KEY_VERSION = 'resort_v2_clean';
 
-export const INITIAL_ROOMS: Room[] = [
-  {
-    id: 'room-1',
-    name: 'บ้าน 1 (ริมธาร)',
-    ac_days_used: 88,
-    last_ac_cleaned_date: '2026-07-10',
-    status: 'available',
-    ac_model: 'Daikin Inverter 18000 BTU',
-    notes: 'บ้านริมน้ำ วิวสวย',
-  },
-  {
-    id: 'room-2',
-    name: 'บ้าน 2 (ริมธาร)',
-    ac_days_used: 45,
-    last_ac_cleaned_date: '2026-08-20',
-    status: 'available',
-    ac_model: 'Daikin Inverter 18000 BTU',
-    notes: 'เตียงคู่',
-  },
-  {
-    id: 'room-3',
-    name: 'บ้าน 3 (สวนป่า)',
-    ac_days_used: 92,
-    last_ac_cleaned_date: '2026-07-01',
-    status: 'available',
-    ac_model: 'Mitsubishi Mr.Slim 12000 BTU',
-    notes: 'ใกล้โซนล็อบบี้',
-  },
-  {
-    id: 'room-4',
-    name: 'บ้าน 4 (สวนป่า)',
-    ac_days_used: 15,
-    last_ac_cleaned_date: '2026-09-22',
-    status: 'available',
-    ac_model: 'Mitsubishi Mr.Slim 12000 BTU',
-  },
-  {
-    id: 'room-5',
-    name: 'บ้าน 5 (พูลวิลล่า)',
-    ac_days_used: 79,
-    last_ac_cleaned_date: '2026-07-20',
-    status: 'available',
-    ac_model: 'Carrier XInverter 24000 BTU',
-    notes: 'มีสระว่ายน้ำส่วนตัว',
-  },
-  {
-    id: 'room-6',
-    name: 'บ้าน 6 (พูลวิลล่า)',
-    ac_days_used: 6,
-    last_ac_cleaned_date: '2026-10-01',
-    status: 'available',
-    ac_model: 'Carrier XInverter 24000 BTU',
-  },
-];
+// Automatically wipe old demo mock data from previous sessions
+function checkAndClearDemoData() {
+  if (typeof window === 'undefined') return;
+  if (localStorage.getItem(STORAGE_KEY_VERSION) !== 'true') {
+    const stored = localStorage.getItem(STORAGE_KEY_ROOMS);
+    if (stored && (stored.includes('room-1') || stored.includes('ริมธาร'))) {
+      localStorage.removeItem(STORAGE_KEY_ROOMS);
+      localStorage.removeItem(STORAGE_KEY_OCCUPANCIES);
+      localStorage.removeItem(STORAGE_KEY_LOGS);
+    }
+    localStorage.setItem(STORAGE_KEY_VERSION, 'true');
+  }
+}
 
-export const INITIAL_LOGS: MaintenanceLog[] = [
-  {
-    id: 'log-1',
-    room_id: 'room-1',
-    action_type: 'electrical',
-    description: 'เปลี่ยนหลอดไฟห้องน้ำ 1 หลอด (LED 9W Warm White)',
-    cost: 120,
-    technician_name: 'ช่างสมชาย',
-    date: '2026-10-05',
-  },
-  {
-    id: 'log-2',
-    room_id: 'room-5',
-    action_type: 'plumbing',
-    description: 'เปลี่ยนสายฉีดชำระใหม่',
-    cost: 250,
-    technician_name: 'ช่างสมหมาย',
-    date: '2026-10-02',
-  },
-  {
-    id: 'log-3',
-    room_id: 'room-6',
-    action_type: 'ac_cleaning',
-    description: 'ล้างแอร์รอบ 90 วัน ล้างคอยล์เย็น + เช็คน้ำยาแอร์',
-    cost: 500,
-    technician_name: 'ช่างแอร์สมบัติ',
-    date: '2026-10-01',
-  },
-];
+// Clear all local data manually if requested
+export function clearAllLocalData() {
+  localStorage.removeItem(STORAGE_KEY_ROOMS);
+  localStorage.removeItem(STORAGE_KEY_OCCUPANCIES);
+  localStorage.removeItem(STORAGE_KEY_LOGS);
+}
 
 // Helper to format date YYYY-MM-DD
 export function getTodayDateString(): string {
@@ -122,12 +59,16 @@ export function formatThaiDate(dateStr: string | null | undefined): string {
 
 // Local Storage helpers
 function getLocalRooms(): Room[] {
+  checkAndClearDemoData();
   const stored = localStorage.getItem(STORAGE_KEY_ROOMS);
   if (!stored) {
-    localStorage.setItem(STORAGE_KEY_ROOMS, JSON.stringify(INITIAL_ROOMS));
-    return INITIAL_ROOMS;
+    return [];
   }
-  return JSON.parse(stored);
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
 }
 
 function saveLocalRooms(rooms: Room[]) {
@@ -135,19 +76,16 @@ function saveLocalRooms(rooms: Room[]) {
 }
 
 function getLocalOccupancies(): OccupancyRecord[] {
+  checkAndClearDemoData();
   const stored = localStorage.getItem(STORAGE_KEY_OCCUPANCIES);
   if (!stored) {
-    // Generate some mock occupancies for the current month
-    const today = getTodayDateString();
-    const mock: OccupancyRecord[] = [
-      { id: 'occ-1', room_id: 'room-1', date: today, is_occupied: true },
-      { id: 'occ-2', room_id: 'room-3', date: today, is_occupied: true },
-      { id: 'occ-3', room_id: 'room-5', date: today, is_occupied: true },
-    ];
-    localStorage.setItem(STORAGE_KEY_OCCUPANCIES, JSON.stringify(mock));
-    return mock;
+    return [];
   }
-  return JSON.parse(stored);
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
 }
 
 function saveLocalOccupancies(data: OccupancyRecord[]) {
@@ -155,12 +93,16 @@ function saveLocalOccupancies(data: OccupancyRecord[]) {
 }
 
 function getLocalLogs(): MaintenanceLog[] {
+  checkAndClearDemoData();
   const stored = localStorage.getItem(STORAGE_KEY_LOGS);
   if (!stored) {
-    localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(INITIAL_LOGS));
-    return INITIAL_LOGS;
+    return [];
   }
-  return JSON.parse(stored);
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
 }
 
 function saveLocalLogs(data: MaintenanceLog[]) {
@@ -180,9 +122,7 @@ export async function fetchRooms(): Promise<Room[]> {
         .select('*')
         .order('name', { ascending: true });
       if (error) throw error;
-      if (data && data.length > 0) return data as Room[];
-      // If table is completely empty, optionally seed
-      return [];
+      return (data || []) as Room[];
     } catch (err) {
       console.warn('Error fetching rooms from Supabase, fallback to local:', err);
     }
@@ -539,27 +479,4 @@ export async function deleteRoom(roomId: string): Promise<boolean> {
   const rooms = getLocalRooms().filter((r) => r.id !== roomId);
   saveLocalRooms(rooms);
   return true;
-}
-
-// Seed initial rooms into Supabase
-export async function seedSupabaseInitialData(): Promise<boolean> {
-  const supabase = getSupabase();
-  if (!supabase) return false;
-
-  try {
-    for (const r of INITIAL_ROOMS) {
-      await supabase.from('rooms').upsert({
-        name: r.name,
-        ac_days_used: r.ac_days_used,
-        last_ac_cleaned_date: r.last_ac_cleaned_date,
-        status: r.status,
-        ac_model: r.ac_model,
-        notes: r.notes,
-      });
-    }
-    return true;
-  } catch (err) {
-    console.error('Error seeding data:', err);
-    return false;
-  }
 }

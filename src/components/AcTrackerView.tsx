@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import type { Room } from '../types';
 import { formatThaiDate } from '../lib/dataService';
-import { Wind, AlertTriangle, CheckCircle2, Clock, Sparkles, Filter, Calendar } from 'lucide-react';
+import { Wind, AlertTriangle, CheckCircle2, Clock, Sparkles, Filter, Calendar, Plus } from 'lucide-react';
 
 interface Props {
   rooms: Room[];
   onOpenCleanModal: (room: Room) => void;
   onOpenRoomCalendar: (room: Room) => void;
+  onOpenRoomModal: () => void;
   onFilterHistoryByRoom?: (roomId: string) => void;
 }
 
-export const AcTrackerView: React.FC<Props> = ({ rooms, onOpenCleanModal, onOpenRoomCalendar }) => {
+export const AcTrackerView: React.FC<Props> = ({
+  rooms,
+  onOpenCleanModal,
+  onOpenRoomCalendar,
+  onOpenRoomModal,
+}) => {
   const [filter, setFilter] = useState<'all' | 'critical' | 'warning' | 'good'>('all');
 
   const criticalRooms = rooms.filter((r) => (r.ac_days_used || 0) >= 90);
@@ -24,6 +30,29 @@ export const AcTrackerView: React.FC<Props> = ({ rooms, onOpenCleanModal, onOpen
     if (filter === 'good') return days < 75;
     return true;
   });
+
+  if (rooms.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-10 text-center border border-slate-200/90 shadow-sm max-w-md mx-auto my-12 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+          <Wind className="w-8 h-8" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-800">ยังไม่มีข้อมูลแอร์บ้านพัก</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            เพิ่มบ้านพักเพื่อเริ่มติดตามจำนวนวันใช้งานแอร์สะสมและกำหนดล้างรอบ 90 วัน
+          </p>
+        </div>
+        <button
+          onClick={onOpenRoomModal}
+          className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95 inline-flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ เพิ่มบ้านพัก</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -147,6 +147,7 @@ export function App() {
                 occupancies={occupancies}
                 onDataChanged={loadData}
                 onOpenRepair={handleOpenRepairForRoom}
+                onOpenRoomModal={() => setIsRoomModalOpen(true)}
               />
             )}
 
@@ -155,6 +156,7 @@ export function App() {
                 rooms={rooms}
                 onOpenCleanModal={(room) => setCleaningRoom(room)}
                 onOpenRoomCalendar={(room) => setCalendarRoom(room)}
+                onOpenRoomModal={() => setIsRoomModalOpen(true)}
               />
             )}
 
@@ -176,6 +178,7 @@ export function App() {
                 logs={logs}
                 onNavigateTab={setActiveTab}
                 onOpenCleanModal={(room) => setCleaningRoom(room)}
+                onOpenRoomModal={() => setIsRoomModalOpen(true)}
               />
             )}
           </>

@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Room, OccupancyRecord, MaintenanceLog } from '../types';
 import { getTodayDateString, formatThaiDate } from '../lib/dataService';
-import { Home, Wind, AlertTriangle, Wrench, TrendingUp, Calendar, ArrowRight } from 'lucide-react';
+import { Home, Wind, AlertTriangle, Wrench, TrendingUp, Calendar, ArrowRight, Plus } from 'lucide-react';
 
 interface Props {
   rooms: Room[];
@@ -9,6 +9,7 @@ interface Props {
   logs: MaintenanceLog[];
   onNavigateTab: (tab: 'calendar' | 'ac' | 'repairs') => void;
   onOpenCleanModal: (room: Room) => void;
+  onOpenRoomModal: () => void;
 }
 
 export const DashboardView: React.FC<Props> = ({
@@ -17,6 +18,7 @@ export const DashboardView: React.FC<Props> = ({
   logs,
   onNavigateTab,
   onOpenCleanModal,
+  onOpenRoomModal,
 }) => {
   const today = getTodayDateString();
 
@@ -29,6 +31,29 @@ export const DashboardView: React.FC<Props> = ({
 
   const occupancyRate = rooms.length > 0 ? Math.round((occupiedTodayRooms.length / rooms.length) * 100) : 0;
   const recentLogs = logs.slice(0, 5);
+
+  if (rooms.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-10 text-center border border-slate-200/90 shadow-sm max-w-md mx-auto my-12 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center mx-auto">
+          <Home className="w-8 h-8" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-800">ยังไม่มีข้อมูลภาพรวม</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            เริ่มต้นใช้งานโดยการเพิ่มบ้านพักของรีสอร์ทคุณ เพื่อดูอัตราเข้าพักและสถิติ
+          </p>
+        </div>
+        <button
+          onClick={onOpenRoomModal}
+          className="px-5 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95 inline-flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ เพิ่มบ้านพัก</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import type { Room, OccupancyRecord } from '../types';
 import { toggleRoomOccupancy, formatThaiDate, getTodayDateString } from '../lib/dataService';
-import { Calendar as CalendarIcon, Check, Plus, Wrench, AlertTriangle, ChevronLeft, ChevronRight, Grid, List } from 'lucide-react';
+import { Calendar as CalendarIcon, Check, Plus, Wrench, AlertTriangle, ChevronLeft, ChevronRight, Grid, List, Home } from 'lucide-react';
 
 interface Props {
   rooms: Room[];
   occupancies: OccupancyRecord[];
   onDataChanged: () => void;
   onOpenRepair: (roomId: string) => void;
+  onOpenRoomModal: () => void;
 }
 
 export const DailyCalendarView: React.FC<Props> = ({
@@ -15,6 +16,7 @@ export const DailyCalendarView: React.FC<Props> = ({
   occupancies,
   onDataChanged,
   onOpenRepair,
+  onOpenRoomModal,
 }) => {
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
@@ -56,6 +58,29 @@ export const DailyCalendarView: React.FC<Props> = ({
   // Generate days in month for matrix view
   const daysInMonth = new Date(year, month, 0).getDate();
   const daysList = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  if (rooms.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl p-10 text-center border border-slate-200/90 shadow-sm max-w-md mx-auto my-12 space-y-4">
+        <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+          <Home className="w-8 h-8" />
+        </div>
+        <div>
+          <h3 className="text-base font-bold text-slate-800">ยังไม่มีข้อมูลบ้านพักในระบบ</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            เริ่มต้นใช้งานโดยการเพิ่มบ้านพักหลังแรกของรีสอร์ทคุณ (เช่น บ้าน 1, บ้าน 101, วิลล่าริมน้ำ)
+          </p>
+        </div>
+        <button
+          onClick={onOpenRoomModal}
+          className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition active:scale-95 inline-flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ เพิ่มบ้านพักหลังแรก</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

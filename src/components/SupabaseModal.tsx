@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { getSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig, getSupabase } from '../lib/supabase';
-import { seedSupabaseInitialData } from '../lib/dataService';
-import { X, CheckCircle, AlertTriangle, Database, Copy, Check, ExternalLink, RefreshCw } from 'lucide-react';
+import { clearAllLocalData } from '../lib/dataService';
+import { X, CheckCircle, AlertTriangle, Database, Copy, Check, ExternalLink, RefreshCw, Trash2 } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -16,8 +16,6 @@ export const SupabaseModal: React.FC<Props> = ({ isOpen, onClose, onConfigChange
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [copiedSql, setCopiedSql] = useState(false);
-  const [seeding, setSeeding] = useState(false);
-  const [seedSuccess, setSeedSuccess] = useState(false);
 
   if (!isOpen) return null;
 
@@ -33,6 +31,14 @@ export const SupabaseModal: React.FC<Props> = ({ isOpen, onClose, onConfigChange
     setAnonKey('');
     setTestStatus('idle');
     onConfigChanged();
+  };
+
+  const handleClearLocalData = () => {
+    if (confirm('คุณต้องการล้างข้อมูลทั้งหมดในเครื่องนี้ใช่หรือไม่?')) {
+      clearAllLocalData();
+      onConfigChanged();
+      alert('ล้างข้อมูลในเครื่องเรียบร้อยแล้ว');
+    }
   };
 
   const handleTestConnection = async () => {
@@ -62,7 +68,7 @@ export const SupabaseModal: React.FC<Props> = ({ isOpen, onClose, onConfigChange
         }
       } else {
         setTestStatus('success');
-        setTestMessage('เชื่อมต่อ Supabase สำเร็จเรียบร้อย! พร้อมใช้งาน Real-time');
+        setTestMessage('เชื่อมต่อ Supabase สำเร็จเรียบร้อย! พร้อมใช้งาน Real-time ข้ามเครื่อง');
       }
     } catch (err: any) {
       setTestStatus('error');
@@ -70,21 +76,8 @@ export const SupabaseModal: React.FC<Props> = ({ isOpen, onClose, onConfigChange
     }
   };
 
-  const handleSeed = async () => {
-    setSeeding(true);
-    const ok = await seedSupabaseInitialData();
-    setSeeding(false);
-    if (ok) {
-      setSeedSuccess(true);
-      setTimeout(() => setSeedSuccess(false), 3000);
-      onConfigChanged();
-    } else {
-      alert('ไม่สามารถเพิ่มข้อมูลเริ่มต้นได้ กรุณาตรวจสอบว่าสร้างตารางใน Supabase เรียบร้อยแล้ว');
-    }
-  };
-
   const handleCopySql = () => {
-    const sql = `-- คัดลอกและนำไปรันในเมนู SQL Editor บน Supabase
+    const sql = `-- คัดลอกและนำไปรันในเมนู SQL Editor บน Supabase เพื่อสร้างตาราง
 CREATE TABLE IF NOT EXISTS public.rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -146,7 +139,7 @@ END $$;
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-800">เชื่อมต่อฐานข้อมูล Supabase</h2>
-              <p className="text-xs text-slate-500">สำหรับอัปเดตข้อมูลออนไลน์เรียลไทม์กับทุกเครื่อง</p>
+              <p className="text-xs text-slate-500">สำหรับอัปเดตข้อมูลออนไลน์เรียลไทม์ ซิงค์สดข้ามทุกเครื่อง</p>
             </div>
           </div>
           <button
@@ -161,11 +154,11 @@ END $$;
           {/* Instructions Box */}
           <div className="bg-emerald-50/70 border border-emerald-200/60 rounded-xl p-4 text-xs text-emerald-900 space-y-2">
             <div className="font-semibold flex items-center gap-1.5 text-sm text-emerald-800">
-              <span>💡 ขั้นตอนสร้างฐานข้อมูลฟรี (ทำเพียง 1 ครั้ง):</span>
+              <span>💡 ขั้นตอนเปิดใช้งานระบบออนไลน์ข้ามเครื่อง (ฟรี):</span>
             </div>
             <ol className="list-decimal list-inside space-y-1 text-slate-700 leading-relaxed pl-1">
               <li>
-                สมัครหรือเปิดโปรเจกต์ที่{' '}
+                เปิดโปรเจกต์ที่{' '}
                 <a
                   href="https://supabase.com"
                   target="_blank"
@@ -278,30 +271,26 @@ END $$;
             </button>
           </div>
 
-          {testStatus === 'success' && (
-            <div className="pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={handleSeed}
-                disabled={seeding}
-                className="w-full py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-medium rounded-xl transition flex items-center justify-center gap-1.5"
-              >
-                {seeding ? 'กำลังนำเข้า...' : seedSuccess ? '✓ นำเข้าข้อมูลบ้านพัก 6 หลังสำเร็จ!' : 'นำเข้าข้อมูลตัวอย่างบ้านพัก 6 หลังเข้า Supabase'}
-              </button>
-            </div>
-          )}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+            <button
+              type="button"
+              onClick={handleClearLocalData}
+              className="text-slate-500 hover:text-red-600 flex items-center gap-1 transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>ล้างข้อมูลในเครื่องทั้งหมด</span>
+            </button>
 
-          {currentConfig.url && (
-            <div className="text-center pt-2">
+            {currentConfig.url && (
               <button
                 type="button"
                 onClick={handleClear}
-                className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                className="text-red-500 hover:text-red-700 hover:underline"
               >
-                ยกเลิกการเชื่อมต่อ (กลับไปใช้โหมดออฟไลน์ Local)
+                ยกเลิกการเชื่อมต่อ Supabase
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
