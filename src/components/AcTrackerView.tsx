@@ -6,10 +6,11 @@ import { Wind, AlertTriangle, CheckCircle2, Clock, Sparkles, Filter, Calendar } 
 interface Props {
   rooms: Room[];
   onOpenCleanModal: (room: Room) => void;
+  onOpenRoomCalendar: (room: Room) => void;
   onFilterHistoryByRoom?: (roomId: string) => void;
 }
 
-export const AcTrackerView: React.FC<Props> = ({ rooms, onOpenCleanModal }) => {
+export const AcTrackerView: React.FC<Props> = ({ rooms, onOpenCleanModal, onOpenRoomCalendar }) => {
   const [filter, setFilter] = useState<'all' | 'critical' | 'warning' | 'good'>('all');
 
   const criticalRooms = rooms.filter((r) => (r.ac_days_used || 0) >= 90);
@@ -235,20 +236,32 @@ export const AcTrackerView: React.FC<Props> = ({ rooms, onOpenCleanModal }) => {
                 </div>
               </div>
 
-              {/* Action Button: Reset AC */}
-              <button
-                onClick={() => onOpenCleanModal(room)}
-                className={`w-full py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 ${
-                  isCritical
-                    ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-400/50'
-                    : isWarning
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>บันทึกล้างแอร์แล้ว (รีเซ็ตเป็น 0 วัน)</span>
-              </button>
+              {/* Action Buttons: Calendar View & Reset AC */}
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenRoomCalendar(room)}
+                  className="w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-blue-400 bg-white hover:bg-blue-50/50 text-slate-800 hover:text-blue-700 transition shadow-xs active:scale-95"
+                >
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <span>📅 เปิดปฏิทิน &amp; บันทึกย้อนหลัง</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onOpenCleanModal(room)}
+                  className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 ${
+                    isCritical
+                      ? 'bg-red-600 hover:bg-red-700 text-white ring-2 ring-red-400/50'
+                      : isWarning
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : 'bg-slate-800 hover:bg-slate-900 text-white'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>✓ บันทึกล้างแอร์แล้ว (รีเซ็ตเป็น 0 วัน)</span>
+                </button>
+              </div>
             </div>
           );
         })}

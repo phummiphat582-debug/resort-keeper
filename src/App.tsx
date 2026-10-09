@@ -11,6 +11,7 @@ import { SupabaseModal } from './components/SupabaseModal';
 import { RoomModal } from './components/RoomModal';
 import { AcCleanModal } from './components/AcCleanModal';
 import { AddRepairModal } from './components/AddRepairModal';
+import { RoomCalendarModal } from './components/RoomCalendarModal';
 import { Sparkles } from 'lucide-react';
 
 export function App() {
@@ -26,6 +27,7 @@ export function App() {
   const [isSupabaseOpen, setIsSupabaseOpen] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [cleaningRoom, setCleaningRoom] = useState<Room | null>(null);
+  const [calendarRoom, setCalendarRoom] = useState<Room | null>(null);
   const [isAddRepairOpen, setIsAddRepairOpen] = useState(false);
   const [repairPresetRoomId, setRepairPresetRoomId] = useState<string | undefined>(undefined);
 
@@ -58,6 +60,16 @@ export function App() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Keep calendarRoom in sync when rooms update
+  useEffect(() => {
+    if (calendarRoom) {
+      const refreshed = rooms.find((r) => r.id === calendarRoom.id);
+      if (refreshed) {
+        setCalendarRoom(refreshed);
+      }
+    }
+  }, [rooms, calendarRoom]);
 
   // Setup Supabase Real-time listener
   useEffect(() => {
@@ -142,6 +154,7 @@ export function App() {
               <AcTrackerView
                 rooms={rooms}
                 onOpenCleanModal={(room) => setCleaningRoom(room)}
+                onOpenRoomCalendar={(room) => setCalendarRoom(room)}
               />
             )}
 
@@ -207,6 +220,16 @@ export function App() {
           loadData();
           showToast('✓ บันทึกประวัติงานซ่อมบำรุงเรียบร้อยแล้ว');
         }}
+      />
+
+      <RoomCalendarModal
+        isOpen={Boolean(calendarRoom)}
+        room={calendarRoom}
+        onClose={() => setCalendarRoom(null)}
+        occupancies={occupancies}
+        logs={logs}
+        onDataChanged={loadData}
+        onOpenCleanModal={(room) => setCleaningRoom(room)}
       />
 
       {/* Footer */}
