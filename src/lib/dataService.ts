@@ -58,7 +58,7 @@ export function formatThaiDate(dateStr: string | null | undefined): string {
 }
 
 // Local Storage helpers
-function getLocalRooms(): Room[] {
+export function getLocalRooms(): Room[] {
   checkAndClearDemoData();
   const stored = localStorage.getItem(STORAGE_KEY_ROOMS);
   if (!stored) {
@@ -71,11 +71,11 @@ function getLocalRooms(): Room[] {
   }
 }
 
-function saveLocalRooms(rooms: Room[]) {
+export function saveLocalRooms(rooms: Room[]) {
   localStorage.setItem(STORAGE_KEY_ROOMS, JSON.stringify(rooms));
 }
 
-function getLocalOccupancies(): OccupancyRecord[] {
+export function getLocalOccupancies(): OccupancyRecord[] {
   checkAndClearDemoData();
   const stored = localStorage.getItem(STORAGE_KEY_OCCUPANCIES);
   if (!stored) {
@@ -88,11 +88,11 @@ function getLocalOccupancies(): OccupancyRecord[] {
   }
 }
 
-function saveLocalOccupancies(data: OccupancyRecord[]) {
+export function saveLocalOccupancies(data: OccupancyRecord[]) {
   localStorage.setItem(STORAGE_KEY_OCCUPANCIES, JSON.stringify(data));
 }
 
-function getLocalLogs(): MaintenanceLog[] {
+export function getLocalLogs(): MaintenanceLog[] {
   checkAndClearDemoData();
   const stored = localStorage.getItem(STORAGE_KEY_LOGS);
   if (!stored) {
@@ -105,7 +105,7 @@ function getLocalLogs(): MaintenanceLog[] {
   }
 }
 
-function saveLocalLogs(data: MaintenanceLog[]) {
+export function saveLocalLogs(data: MaintenanceLog[]) {
   localStorage.setItem(STORAGE_KEY_LOGS, JSON.stringify(data));
 }
 
@@ -122,7 +122,10 @@ export async function fetchRooms(): Promise<Room[]> {
         .select('*')
         .order('name', { ascending: true });
       if (error) throw error;
-      return (data || []) as Room[];
+      const rooms = (data || []) as Room[];
+      // Update local cache so next app open is instantaneous (0ms)
+      saveLocalRooms(rooms);
+      return rooms;
     } catch (err) {
       console.warn('Error fetching rooms from Supabase, fallback to local:', err);
     }
@@ -140,7 +143,12 @@ export async function fetchOccupancies(monthPrefix?: string): Promise<OccupancyR
       }
       const { data, error } = await query;
       if (error) throw error;
-      return (data || []) as OccupancyRecord[];
+      const records = (data || []) as OccupancyRecord[];
+      // Update local cache if full query
+      if (!monthPrefix) {
+        saveLocalOccupancies(records);
+      }
+      return records;
     } catch (err) {
       console.warn('Error fetching occupancies from Supabase, fallback to local:', err);
     }
@@ -162,7 +170,10 @@ export async function fetchMaintenanceLogs(): Promise<MaintenanceLog[]> {
         .select('*')
         .order('date', { ascending: false });
       if (error) throw error;
-      return (data || []) as MaintenanceLog[];
+      const logs = (data || []) as MaintenanceLog[];
+      // Update local cache
+      saveLocalLogs(logs);
+      return logs;
     } catch (err) {
       console.warn('Error fetching maintenance logs from Supabase, fallback to local:', err);
     }

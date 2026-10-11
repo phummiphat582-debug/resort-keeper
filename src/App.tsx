@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Room, OccupancyRecord, MaintenanceLog } from './types';
-import { fetchRooms, fetchOccupancies, fetchMaintenanceLogs } from './lib/dataService';
+import {
+  fetchRooms,
+  fetchOccupancies,
+  fetchMaintenanceLogs,
+  getLocalRooms,
+  getLocalOccupancies,
+  getLocalLogs,
+} from './lib/dataService';
 import { getSupabase } from './lib/supabase';
 import { Navbar } from './components/Navbar';
 import { DailyCalendarView } from './components/DailyCalendarView';
@@ -16,10 +23,13 @@ import { PwaInstallPrompt } from './components/PwaInstallPrompt';
 import { Sparkles } from 'lucide-react';
 
 export function App() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [occupancies, setOccupancies] = useState<OccupancyRecord[]>([]);
-  const [logs, setLogs] = useState<MaintenanceLog[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cache-First instant initialization (0ms startup if cached data exists)
+  const [rooms, setRooms] = useState<Room[]>(() => getLocalRooms());
+  const [occupancies, setOccupancies] = useState<OccupancyRecord[]>(() => getLocalOccupancies());
+  const [logs, setLogs] = useState<MaintenanceLog[]>(() => getLocalLogs());
+  // Only show full blocking spinner if local storage is completely empty
+  const [loading, setLoading] = useState(() => getLocalRooms().length === 0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Active navigation tab
   const [activeTab, setActiveTab] = useState<'calendar' | 'ac' | 'repairs' | 'dashboard'>('calendar');
@@ -46,8 +56,11 @@ export function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Fetch all data
-  const loadData = useCallback(async () => {
+  // Fetch all data in background (Stale-While-Revalidate)
+  const loadData = useCallback(async (isInitial = false) => {
+    if (!isInitial) {
+      setIsSyncing(true);
+    }
     try {
       const [fetchedRooms, fetchedOccupancies, fetchedLogs] = await Promise.all([
         fetchRooms(),
@@ -61,11 +74,12 @@ export function App() {
       console.error('Failed to load data:', err);
     } finally {
       setLoading(false);
+      setIsSyncing(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [loadData]);
 
   // Keep calendarRoom in sync when rooms update
@@ -155,6 +169,7 @@ export function App() {
         onOpenSupabaseModal={() => setIsSupabaseOpen(true)}
         onOpenRoomModal={() => setIsRoomModalOpen(true)}
         criticalAcCount={criticalAcCount}
+        isSyncing={isSyncing}
       />
 
       {/* Main Container */}
@@ -173,6 +188,7 @@ export function App() {
                 onDataChanged={loadData}
                 onOpenRepair={handleOpenRepairForRoom}
                 onOpenRoomModal={() => setIsRoomModalOpen(true)}
+                onOpenRoomCalendar={(room) => setCalendarRoom(room)}
               />
             )}
 

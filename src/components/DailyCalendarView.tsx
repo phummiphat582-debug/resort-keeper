@@ -9,6 +9,7 @@ interface Props {
   onDataChanged: () => void;
   onOpenRepair: (roomId: string) => void;
   onOpenRoomModal: () => void;
+  onOpenRoomCalendar?: (room: Room) => void;
 }
 
 export const DailyCalendarView: React.FC<Props> = ({
@@ -17,6 +18,7 @@ export const DailyCalendarView: React.FC<Props> = ({
   onDataChanged,
   onOpenRepair,
   onOpenRoomModal,
+  onOpenRoomCalendar,
 }) => {
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [viewMode, setViewMode] = useState<'daily' | 'monthly'>('daily');
@@ -276,6 +278,17 @@ export const DailyCalendarView: React.FC<Props> = ({
                         </>
                       )}
                     </button>
+
+                    {onOpenRoomCalendar && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenRoomCalendar(room)}
+                        className="w-full py-2 px-3 text-xs text-blue-700 bg-blue-50/80 hover:bg-blue-100 rounded-xl transition flex items-center justify-center gap-1.5 font-bold border border-blue-200/80 active:scale-95"
+                      >
+                        <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                        <span>ปฏิทินย้อนหลัง & บันทึกล้างแอร์</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => onOpenRepair(room.id)}

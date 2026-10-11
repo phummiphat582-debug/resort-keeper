@@ -8,6 +8,7 @@ interface Props {
   onOpenSupabaseModal: () => void;
   onOpenRoomModal: () => void;
   criticalAcCount: number;
+  isSyncing?: boolean;
 }
 
 export const Navbar: React.FC<Props> = ({
@@ -16,6 +17,7 @@ export const Navbar: React.FC<Props> = ({
   onOpenSupabaseModal,
   onOpenRoomModal,
   criticalAcCount,
+  isSyncing = false,
 }) => {
   const config = getSupabaseConfig();
   const isOnline = Boolean(config.url && config.anonKey);
@@ -55,10 +57,22 @@ export const Navbar: React.FC<Props> = ({
             >
               <Database className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">
-                {isOnline ? 'ออนไลน์ (Supabase Realtime)' : 'โหมดทดลอง (Local)'}
+                {isSyncing
+                  ? 'กำลังซิงค์...'
+                  : isOnline
+                  ? 'ออนไลน์ (เรียลไทม์)'
+                  : 'โหมดทดลอง (Local)'}
               </span>
-              <span className="sm:hidden">{isOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span>
-              <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="sm:hidden">{isSyncing ? 'กำลังซิงค์' : isOnline ? 'ออนไลน์' : 'ออฟไลน์'}</span>
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isSyncing
+                    ? 'bg-blue-500 animate-ping'
+                    : isOnline
+                    ? 'bg-emerald-500 animate-pulse'
+                    : 'bg-amber-500'
+                }`}
+              />
             </button>
 
             {/* Manage Rooms Button */}
