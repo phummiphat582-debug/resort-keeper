@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Room, OccupancyRecord, MaintenanceLog } from '../types';
-import { toggleRoomOccupancy, getTodayDateString, formatThaiDate, deleteMaintenanceLog } from '../lib/dataService';
+import {
+  toggleRoomOccupancy,
+  getTodayDateString,
+  formatThaiDate,
+  deleteMaintenanceLog,
+  resetRoomAcCleaning,
+} from '../lib/dataService';
 import {
   X,
   ChevronLeft,
@@ -12,7 +18,8 @@ import {
   Calendar,
   Trash2,
   History,
-  CheckCircle2
+  CheckCircle2,
+  Loader2,
 } from 'lucide-react';
 
 interface Props {
@@ -22,7 +29,6 @@ interface Props {
   occupancies: OccupancyRecord[];
   logs: MaintenanceLog[];
   onDataChanged: () => void;
-  onOpenCleanModal: (room: Room, initialDate?: string) => void;
 }
 
 const THAI_MONTHS = [
@@ -39,7 +45,6 @@ export const RoomCalendarModal: React.FC<Props> = ({
   occupancies,
   logs,
   onDataChanged,
-  onOpenCleanModal,
 }) => {
   const today = getTodayDateString();
   const [todayYear, todayMonth] = today.split('-').map(Number);
@@ -53,11 +58,23 @@ export const RoomCalendarModal: React.FC<Props> = ({
   // Interaction mode on calendar tap: 'occupancy' (default) or 'clean' (tap to log AC cleaning on that day)
   const [tapMode, setTapMode] = useState<'occupancy' | 'clean'>('occupancy');
 
-  if (!isOpen || !room) return null;
+  // Inline AC Cleaning Form state (replaces overlapping popups)
+  const [showCleanForm, setShowCleanForm] = useState(false);
+  const [cleanDate, setCleanDate] = useState(today);
+  const [cleanTech, setCleanTech] = useState('ช่างแอร์');
+  const [cleanCost, setCleanCost] = useState('500');
+  const [cleanNotes, setCleanNotes] = useState('ล้างแอร์รอบ 90 วัน เรียบร้อย (ทำความสะอาดฟิลเตอร์ + คอยล์เย็น)');
+  const [isSubmittingClean, setIsSubmittingClean] = useState(false);
+  const [cleanSuccessToast, setCleanSuccessToast] = useState<string | null>(null);
 
-  const acDays = room.ac_days_used || 0;
-  const isCritical = acDays >= 90;
-  const isWarning = acDays >= 75 && acDays < 90;
+  useEffect(() => {
+    setShowCleanForm(false);
+    setCleanSuccessToast(null);
+    setCleanDate(today);
+  }, [room?.id, isOpen, today]);
+
+  // Early return if not open
+  if (!isOpen || !room) return null;
 
   // Month navigation
   const prevMonth = () => {
@@ -101,6 +118,55 @@ export const RoomCalendarModal: React.FC<Props> = ({
 
   const latestCleaning = roomCleanings[0];
 
+  // Dynamically compute effective AC days used based on latest cleaning date and occupancies
+  const effectiveAcDays = useMemo(() => {
+    const latestDate = latestCleaning?.date || room.last_ac_cleaned_date;
+    if (!latestDate) {
+      return occupancies.filter((o) => o.room_id === room.id && o.is_occupied).length;
+    }
+    return occupancies.filter(
+      (o) => o.room_id === room.id && o.is_occupied && o.date > latestDate
+    ).length;
+  }, [occupancies, room.id, latestCleaning?.date, room.last_ac_cleaned_date]);
+
+  const isCritical = effectiveAcDays >= 90;
+  const isWarning = effectiveAcDays >= 75 && effectiveAcDays < 90;
+
+  // Open inline form with selected date
+  const handleOpenInlineCleanForm = (dateToSet?: string) => {
+    if (dateToSet) {
+      setCleanDate(dateToSet);
+    } else {
+      setCleanDate(today);
+    }
+    setShowCleanForm(true);
+    setCleanSuccessToast(null);
+  };
+
+  // Submit inline AC Cleaning
+  const handleSubmitInlineClean = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingClean(true);
+    try {
+      await resetRoomAcCleaning(
+        room.id,
+        cleanTech.trim() || 'ช่างแอร์',
+        Number(cleanCost) || 0,
+        cleanNotes.trim(),
+        cleanDate
+      );
+      setShowCleanForm(false);
+      setCleanSuccessToast(`✓ บันทึกล้างแอร์วันที่ ${formatThaiDate(cleanDate)} เรียบร้อยแล้ว (รีเซ็ตรอบ 90 วันแล้ว)`);
+      setTimeout(() => setCleanSuccessToast(null), 4000);
+      onDataChanged();
+    } catch (err) {
+      console.error('Error recording AC cleaning:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูลล้างแอร์');
+    } finally {
+      setIsSubmittingClean(false);
+    }
+  };
+
   // Check if AC was cleaned on this specific date
   const getCleaningLogOn = (dateStr: string) => {
     return logs.find(
@@ -108,14 +174,14 @@ export const RoomCalendarModal: React.FC<Props> = ({
     );
   };
 
-  // Toggle day occupancy or trigger AC clean modal based on tapMode
+  // Toggle day occupancy or trigger inline AC clean form based on tapMode
   const handleDayClick = async (dayNumber: number) => {
     const padMonth = String(viewMonth).padStart(2, '0');
     const padDay = String(dayNumber).padStart(2, '0');
     const dateStr = `${viewYear}-${padMonth}-${padDay}`;
 
     if (tapMode === 'clean') {
-      onOpenCleanModal(room, dateStr);
+      handleOpenInlineCleanForm(dateStr);
       return;
     }
 
@@ -210,11 +276,21 @@ export const RoomCalendarModal: React.FC<Props> = ({
 
               <button
                 type="button"
-                onClick={() => onOpenCleanModal(room)}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95 shrink-0"
+                onClick={() => {
+                  if (showCleanForm) {
+                    setShowCleanForm(false);
+                  } else {
+                    handleOpenInlineCleanForm();
+                  }
+                }}
+                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95 shrink-0 ${
+                  showCleanForm
+                    ? 'bg-slate-700 text-white hover:bg-slate-800'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>+ บันทึกล้างแอร์</span>
+                <span>{showCleanForm ? 'ซ่อนฟอร์ม' : '+ บันทึกล้างแอร์'}</span>
               </button>
             </div>
 
@@ -231,7 +307,7 @@ export const RoomCalendarModal: React.FC<Props> = ({
                       isCritical ? 'text-red-600' : isWarning ? 'text-amber-600' : 'text-emerald-700'
                     }`}
                   >
-                    {acDays} / 90 วัน
+                    {effectiveAcDays} / 90 วัน
                   </span>
                   {isCritical ? (
                     <span className="text-[10px] bg-red-100 text-red-700 font-bold px-1.5 py-0.2 rounded">
@@ -249,8 +325,8 @@ export const RoomCalendarModal: React.FC<Props> = ({
                 </div>
                 <p className="text-[10px] text-slate-500 mt-0.5">
                   {isCritical
-                    ? `เกินกำหนดมาแล้ว ${acDays - 90} วัน`
-                    : `เหลืออีก ${90 - acDays} วันก่อนถึงกำหนด`}
+                    ? `เกินกำหนดมาแล้ว ${effectiveAcDays - 90} วัน`
+                    : `เหลืออีก ${90 - effectiveAcDays} วันก่อนถึงกำหนด`}
                 </p>
               </div>
 
@@ -260,12 +336,151 @@ export const RoomCalendarModal: React.FC<Props> = ({
                   className={`h-full rounded-full ${
                     isCritical ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
                   }`}
-                  style={{ width: `${Math.min(100, (acDays / 90) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (effectiveAcDays / 90) * 100)}%` }}
                 />
               </div>
             </div>
           </div>
         </div>
+
+        {/* Success Toast Banner */}
+        {cleanSuccessToast && (
+          <div className="mx-4 sm:mx-5 my-2.5 p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs flex items-center justify-between shadow-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-semibold">{cleanSuccessToast}</span>
+            </div>
+            <button
+              onClick={() => setCleanSuccessToast(null)}
+              className="text-emerald-500 hover:text-emerald-800 p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Inline AC Cleaning Form (บันทึกล้างแอร์ย้อนหลังได้ในหน้านี้ โดยไม่ต้องเปิดป็อบอัพซ้อนกัน) */}
+        {showCleanForm && (
+          <div className="mx-4 sm:mx-5 my-3 p-4 bg-gradient-to-br from-blue-50/95 to-indigo-50/95 border-2 border-blue-400 rounded-2xl shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-start justify-between pb-2.5 border-b border-blue-200/80 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-blue-600 text-white rounded-lg shadow-xs">
+                  <Sparkles className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+                    <span>บันทึกประวัติล้างแอร์: {room.name}</span>
+                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
+                      เลือกลงย้อนหลังได้
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-blue-800 mt-0.5">
+                    ระบุวันที่ล้างแอร์เพื่อรีเซ็ตตัวนับ 90 วันใหม่ (ระบบจะนับเฉพาะวันที่ลูกค้าเข้าพักหลังวันที่นี้)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCleanForm(false)}
+                className="p-1.5 text-blue-400 hover:text-blue-700 hover:bg-blue-100 rounded-lg transition"
+                title="ปิดฟอร์ม"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitInlineClean} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* วันที่ล้างแอร์ */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                    <span>วันที่ล้างแอร์ (เลือกลงย้อนหลังได้)</span>
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={cleanDate}
+                    onChange={(e) => setCleanDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-blue-300 text-xs sm:text-sm font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                {/* ชื่อช่าง */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ชื่อช่าง / ผู้ดำเนินการ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={cleanTech}
+                    onChange={(e) => setCleanTech(e.target.value)}
+                    placeholder="เช่น ช่างแอร์ หรือ ช่างสมชาย"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-blue-300 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                {/* ค่าบริการ */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    ค่าบริการล้างแอร์ (บาท)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={cleanCost}
+                    onChange={(e) => setCleanCost(e.target.value)}
+                    placeholder="500"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-blue-300 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                {/* รายละเอียด */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    รายละเอียด / การตรวจเช็ค
+                  </label>
+                  <input
+                    type="text"
+                    value={cleanNotes}
+                    onChange={(e) => setCleanNotes(e.target.value)}
+                    placeholder="เช่น ล้างฟิลเตอร์และคอยล์เย็นเรียบร้อย"
+                    className="w-full px-3 py-2 bg-white rounded-xl border border-blue-300 text-xs sm:text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-1 border-t border-blue-200/60">
+                <button
+                  type="button"
+                  onClick={() => setShowCleanForm(false)}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingClean}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center gap-1.5"
+                >
+                  {isSubmittingClean ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>กำลังบันทึก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>✓ ยืนยันบันทึกล้างแอร์</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Calendar Month Navigation & Tap Mode Switcher */}
         <div className="px-4 sm:px-5 pt-3 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 bg-white">
@@ -458,7 +673,7 @@ export const RoomCalendarModal: React.FC<Props> = ({
 
               <button
                 type="button"
-                onClick={() => onOpenCleanModal(room)}
+                onClick={() => handleOpenInlineCleanForm()}
                 className="text-xs text-blue-600 hover:text-blue-800 font-bold hover:underline flex items-center gap-1"
               >
                 <Sparkles className="w-3.5 h-3.5" />
@@ -473,7 +688,7 @@ export const RoomCalendarModal: React.FC<Props> = ({
                 </p>
                 <button
                   type="button"
-                  onClick={() => onOpenCleanModal(room)}
+                  onClick={() => handleOpenInlineCleanForm()}
                   className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition"
                 >
                   <Sparkles className="w-3.5 h-3.5" />

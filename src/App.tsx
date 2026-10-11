@@ -72,7 +72,13 @@ export function App() {
   useEffect(() => {
     if (calendarRoom) {
       const refreshed = rooms.find((r) => r.id === calendarRoom.id);
-      if (refreshed) {
+      if (
+        refreshed &&
+        (refreshed.ac_days_used !== calendarRoom.ac_days_used ||
+          refreshed.last_ac_cleaned_date !== calendarRoom.last_ac_cleaned_date ||
+          refreshed.status !== calendarRoom.status ||
+          refreshed.name !== calendarRoom.name)
+      ) {
         setCalendarRoom(refreshed);
       }
     }
@@ -224,19 +230,6 @@ export function App() {
         }}
       />
 
-      <AcCleanModal
-        room={cleaningRoom}
-        initialDate={cleaningInitialDate}
-        onClose={() => {
-          setCleaningRoom(null);
-          setCleaningInitialDate(undefined);
-        }}
-        onSuccess={() => {
-          loadData();
-          showToast('✓ บันทึกล้างแอร์และคำนวณรอบใหม่เรียบร้อยแล้ว!');
-        }}
-      />
-
       <AddRepairModal
         isOpen={isAddRepairOpen}
         onClose={() => setIsAddRepairOpen(false)}
@@ -255,7 +248,19 @@ export function App() {
         occupancies={occupancies}
         logs={logs}
         onDataChanged={loadData}
-        onOpenCleanModal={handleOpenCleanModal}
+      />
+
+      <AcCleanModal
+        room={cleaningRoom}
+        initialDate={cleaningInitialDate}
+        onClose={() => {
+          setCleaningRoom(null);
+          setCleaningInitialDate(undefined);
+        }}
+        onSuccess={() => {
+          loadData();
+          showToast('✓ บันทึกล้างแอร์และคำนวณรอบใหม่เรียบร้อยแล้ว!');
+        }}
       />
 
       {/* Footer */}

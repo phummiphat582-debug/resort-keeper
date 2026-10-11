@@ -48,7 +48,7 @@ export const AcCleanModal: React.FC<Props> = ({ room, initialDate, onClose, onSu
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white relative">
           <button
