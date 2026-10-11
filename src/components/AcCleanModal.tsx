@@ -1,19 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Room } from '../types';
-import { resetRoomAcCleaning } from '../lib/dataService';
-import { X, CheckCircle, Sparkles, Wind } from 'lucide-react';
+import { resetRoomAcCleaning, getTodayDateString } from '../lib/dataService';
+import { X, CheckCircle, Sparkles, Wind, Calendar } from 'lucide-react';
 
 interface Props {
   room: Room | null;
+  initialDate?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const AcCleanModal: React.FC<Props> = ({ room, onClose, onSuccess }) => {
+export const AcCleanModal: React.FC<Props> = ({ room, initialDate, onClose, onSuccess }) => {
+  const [cleanDate, setCleanDate] = useState(initialDate || getTodayDateString());
   const [technician, setTechnician] = useState('ช่างแอร์');
   const [cost, setCost] = useState('500');
   const [notes, setNotes] = useState('ล้างแอร์รอบ 90 วัน ล้างฟิลเตอร์และคอยล์เย็นเรียบร้อย');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (initialDate) {
+      setCleanDate(initialDate);
+    } else {
+      setCleanDate(getTodayDateString());
+    }
+  }, [initialDate, room]);
 
   if (!room) return null;
 
@@ -25,7 +35,8 @@ export const AcCleanModal: React.FC<Props> = ({ room, onClose, onSuccess }) => {
         room.id,
         technician.trim() || 'ช่างแอร์',
         Number(cost) || 0,
-        notes.trim()
+        notes.trim(),
+        cleanDate
       );
       onSuccess();
       onClose();
@@ -59,9 +70,23 @@ export const AcCleanModal: React.FC<Props> = ({ room, onClose, onSuccess }) => {
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
             <Wind className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <span>
-              เมื่อบันทึกแล้ว ตัวนับการใช้งานแอร์ของ <b>{room.name}</b> จะถูกรีเซ็ตกลับเป็น <b>0 วัน</b>{' '}
-              และระบบจะบันทึกประวัตินี้ลงในสมุดบันทึกงานซ่อมบำรุงอัตโนมัติ
+              สามารถระบุ <b>วันที่ล้างแอร์ย้อนหลัง</b> ได้ ระบบจะบันทึกประวัติและเริ่มนับรอบ 90 วันใหม่โดยนับเฉพาะวันที่ลูกค้าเข้าพักหลังวันที่นี้
             </span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-blue-600" />
+              <span>วันที่ล้างแอร์ (เลือกลงย้อนหลังได้)</span>
+              <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              required
+              value={cleanDate}
+              onChange={(e) => setCleanDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
           </div>
 
           <div>
@@ -110,7 +135,7 @@ export const AcCleanModal: React.FC<Props> = ({ room, onClose, onSuccess }) => {
               className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
             >
               <CheckCircle className="w-4 h-4" />
-              {loading ? 'กำลังบันทึก...' : 'ยืนยันล้างแอร์เสร็จแล้ว'}
+              {loading ? 'กำลังบันทึก...' : 'บันทึกล้างแอร์'}
             </button>
           </div>
         </form>

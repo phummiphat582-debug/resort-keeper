@@ -213,8 +213,11 @@ export async function toggleRoomOccupancy(
           .eq('date', date);
       }
 
-      // Calculate new AC usage counter
-      const delta = willBeOccupied ? (existing ? 0 : 1) : (existing ? -1 : 0);
+      // Calculate new AC usage counter (only count occupancies after last cleaned date)
+      const isAfterClean = !room.last_ac_cleaned_date || date > room.last_ac_cleaned_date;
+      const delta = isAfterClean
+        ? (willBeOccupied ? (existing ? 0 : 1) : (existing ? -1 : 0))
+        : 0;
       const newAcDays = Math.max(0, (room.ac_days_used || 0) + delta);
       const newStatus = date === today ? (willBeOccupied ? 'occupied' : 'available') : room.status;
 
@@ -263,7 +266,11 @@ export async function toggleRoomOccupancy(
   saveLocalOccupancies(occupancies);
 
   // Update room
-  const delta = willBeOccupied ? (existingIdx === -1 ? 1 : 0) : (existingIdx !== -1 ? -1 : 0);
+  const isAfterClean = !room.last_ac_cleaned_date || date > room.last_ac_cleaned_date;
+  const delta = isAfterClean
+    ? (willBeOccupied ? (existingIdx === -1 ? 1 : 0) : (existingIdx !== -1 ? -1 : 0))
+    : 0;
+
   const updatedRooms = getLocalRooms().map((r) => {
     if (r.id === room.id) {
       return {
@@ -280,31 +287,20 @@ export async function toggleRoomOccupancy(
   return { isOccupied: willBeOccupied, updatedRoom };
 }
 
-// Reset AC Counter after cleaning and automatically create a log
+// Reset AC Counter after cleaning and automatically create a log (supports retroactive cleaning dates)
 export async function resetRoomAcCleaning(
   roomId: string,
   technicianName = 'ช่างแอร์',
   cost = 500,
-  note = 'ล้างแอร์รอบ 90 วัน เรียบร้อย (ทำความสะอาดฟิลเตอร์ + คอยล์เย็น)'
+  note = 'ล้างแอร์รอบ 90 วัน เรียบร้อย (ทำความสะอาดฟิลเตอร์ + คอยล์เย็น)',
+  cleanedDate?: string
 ): Promise<{ updatedRoom: Room; newLog: MaintenanceLog }> {
-  const today = getTodayDateString();
+  const targetDate = cleanedDate || getTodayDateString();
   const supabase = getSupabase();
 
   if (supabase) {
     try {
-      // 1. Update room
-      const { data: updatedRoom, error: roomErr } = await supabase
-        .from('rooms')
-        .update({
-          ac_days_used: 0,
-          last_ac_cleaned_date: today,
-        })
-        .eq('id', roomId)
-        .select()
-        .single();
-      if (roomErr) throw roomErr;
-
-      // 2. Insert maintenance log
+      // 1. Insert maintenance log
       const { data: logData, error: logErr } = await supabase
         .from('maintenance_logs')
         .insert({
@@ -313,11 +309,43 @@ export async function resetRoomAcCleaning(
           description: note,
           cost,
           technician_name: technicianName,
-          date: today,
+          date: targetDate,
         })
         .select()
         .single();
       if (logErr) throw logErr;
+
+      // 2. Query all cleanings for this room to find the latest cleaning date
+      const { data: allCleanings } = await supabase
+        .from('maintenance_logs')
+        .select('date')
+        .eq('room_id', roomId)
+        .eq('action_type', 'ac_cleaning')
+        .order('date', { ascending: false });
+
+      const latestCleanDate = allCleanings && allCleanings.length > 0 ? allCleanings[0].date : targetDate;
+
+      // 3. Count occupied days strictly after the latest cleaning date
+      const { count } = await supabase
+        .from('occupancies')
+        .select('*', { count: 'exact', head: true })
+        .eq('room_id', roomId)
+        .eq('is_occupied', true)
+        .gt('date', latestCleanDate);
+
+      const acDaysAfter = count || 0;
+
+      // 4. Update room with accurate counter and latest clean date
+      const { data: updatedRoom, error: roomErr } = await supabase
+        .from('rooms')
+        .update({
+          ac_days_used: acDaysAfter,
+          last_ac_cleaned_date: latestCleanDate,
+        })
+        .eq('id', roomId)
+        .select()
+        .single();
+      if (roomErr) throw roomErr;
 
       return { updatedRoom: updatedRoom as Room, newLog: logData as MaintenanceLog };
     } catch (err) {
@@ -326,17 +354,6 @@ export async function resetRoomAcCleaning(
   }
 
   // Local fallback
-  const rooms = getLocalRooms();
-  const roomIdx = rooms.findIndex((r) => r.id === roomId);
-  if (roomIdx !== -1) {
-    rooms[roomIdx] = {
-      ...rooms[roomIdx],
-      ac_days_used: 0,
-      last_ac_cleaned_date: today,
-    };
-    saveLocalRooms(rooms);
-  }
-
   const newLog: MaintenanceLog = {
     id: 'log-' + Date.now(),
     room_id: roomId,
@@ -344,13 +361,103 @@ export async function resetRoomAcCleaning(
     description: note,
     cost,
     technician_name: technicianName,
-    date: today,
+    date: targetDate,
   };
   const logs = getLocalLogs();
   logs.unshift(newLog);
   saveLocalLogs(logs);
 
+  const roomCleanings = logs
+    .filter((l) => l.room_id === roomId && l.action_type === 'ac_cleaning')
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const latestCleanDate = roomCleanings[0]?.date || targetDate;
+
+  const occupancies = getLocalOccupancies();
+  const acDaysAfter = occupancies.filter(
+    (o) => o.room_id === roomId && o.is_occupied && o.date > latestCleanDate
+  ).length;
+
+  const rooms = getLocalRooms();
+  const roomIdx = rooms.findIndex((r) => r.id === roomId);
+  if (roomIdx !== -1) {
+    rooms[roomIdx] = {
+      ...rooms[roomIdx],
+      ac_days_used: acDaysAfter,
+      last_ac_cleaned_date: latestCleanDate,
+    };
+    saveLocalRooms(rooms);
+  }
+
   return { updatedRoom: rooms[roomIdx], newLog };
+}
+
+// Delete maintenance log and recalculate room AC status
+export async function deleteMaintenanceLog(logId: string, roomId?: string): Promise<boolean> {
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      await supabase.from('maintenance_logs').delete().eq('id', logId);
+      if (roomId) {
+        const { data: allCleanings } = await supabase
+          .from('maintenance_logs')
+          .select('date')
+          .eq('room_id', roomId)
+          .eq('action_type', 'ac_cleaning')
+          .order('date', { ascending: false });
+
+        const latestCleanDate = allCleanings && allCleanings.length > 0 ? allCleanings[0].date : null;
+
+        let query = supabase
+          .from('occupancies')
+          .select('*', { count: 'exact', head: true })
+          .eq('room_id', roomId)
+          .eq('is_occupied', true);
+
+        if (latestCleanDate) {
+          query = query.gt('date', latestCleanDate);
+        }
+
+        const { count } = await query;
+
+        await supabase
+          .from('rooms')
+          .update({
+            ac_days_used: count || 0,
+            last_ac_cleaned_date: latestCleanDate,
+          })
+          .eq('id', roomId);
+      }
+      return true;
+    } catch (err) {
+      console.error('Supabase delete log error:', err);
+    }
+  }
+
+  // Local fallback
+  const logs = getLocalLogs().filter((l) => l.id !== logId);
+  saveLocalLogs(logs);
+
+  if (roomId) {
+    const roomCleanings = logs
+      .filter((l) => l.room_id === roomId && l.action_type === 'ac_cleaning')
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const latestCleanDate = roomCleanings[0]?.date || null;
+
+    const occupancies = getLocalOccupancies();
+    const acDays = occupancies.filter(
+      (o) => o.room_id === roomId && o.is_occupied && (!latestCleanDate || o.date > latestCleanDate)
+    ).length;
+
+    const rooms = getLocalRooms();
+    const idx = rooms.findIndex((r) => r.id === roomId);
+    if (idx !== -1) {
+      rooms[idx].ac_days_used = acDays;
+      rooms[idx].last_ac_cleaned_date = latestCleanDate;
+      saveLocalRooms(rooms);
+    }
+  }
+
+  return true;
 }
 
 // Add a maintenance/repair log

@@ -28,9 +28,15 @@ export function App() {
   const [isSupabaseOpen, setIsSupabaseOpen] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [cleaningRoom, setCleaningRoom] = useState<Room | null>(null);
+  const [cleaningInitialDate, setCleaningInitialDate] = useState<string | undefined>(undefined);
   const [calendarRoom, setCalendarRoom] = useState<Room | null>(null);
   const [isAddRepairOpen, setIsAddRepairOpen] = useState(false);
   const [repairPresetRoomId, setRepairPresetRoomId] = useState<string | undefined>(undefined);
+
+  const handleOpenCleanModal = (room: Room, date?: string) => {
+    setCleaningRoom(room);
+    setCleaningInitialDate(date);
+  };
 
   // Success Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -167,7 +173,7 @@ export function App() {
             {activeTab === 'ac' && (
               <AcTrackerView
                 rooms={rooms}
-                onOpenCleanModal={(room) => setCleaningRoom(room)}
+                onOpenCleanModal={(room) => handleOpenCleanModal(room)}
                 onOpenRoomCalendar={(room) => setCalendarRoom(room)}
                 onOpenRoomModal={() => setIsRoomModalOpen(true)}
               />
@@ -190,7 +196,7 @@ export function App() {
                 occupancies={occupancies}
                 logs={logs}
                 onNavigateTab={setActiveTab}
-                onOpenCleanModal={(room) => setCleaningRoom(room)}
+                onOpenCleanModal={(room) => handleOpenCleanModal(room)}
                 onOpenRoomModal={() => setIsRoomModalOpen(true)}
               />
             )}
@@ -220,10 +226,14 @@ export function App() {
 
       <AcCleanModal
         room={cleaningRoom}
-        onClose={() => setCleaningRoom(null)}
+        initialDate={cleaningInitialDate}
+        onClose={() => {
+          setCleaningRoom(null);
+          setCleaningInitialDate(undefined);
+        }}
         onSuccess={() => {
           loadData();
-          showToast('✓ บันทึกล้างแอร์และรีเซ็ตตัวนับเป็น 0 วัน สำเร็จ!');
+          showToast('✓ บันทึกล้างแอร์และคำนวณรอบใหม่เรียบร้อยแล้ว!');
         }}
       />
 
@@ -245,7 +255,7 @@ export function App() {
         occupancies={occupancies}
         logs={logs}
         onDataChanged={loadData}
-        onOpenCleanModal={(room) => setCleaningRoom(room)}
+        onOpenCleanModal={handleOpenCleanModal}
       />
 
       {/* Footer */}
