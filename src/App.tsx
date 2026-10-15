@@ -257,14 +257,16 @@ export function App() {
         }}
       />
 
-      <RoomCalendarModal
-        isOpen={Boolean(calendarRoom)}
-        room={calendarRoom}
-        onClose={() => setCalendarRoom(null)}
-        occupancies={occupancies}
-        logs={logs}
-        onDataChanged={loadData}
-      />
+      {calendarRoom && (
+        <RoomCalendarModal
+          isOpen={Boolean(calendarRoom)}
+          room={calendarRoom}
+          onClose={() => setCalendarRoom(null)}
+          occupancies={occupancies}
+          logs={logs}
+          onDataChanged={loadData}
+        />
+      )}
 
       <AcCleanModal
         room={cleaningRoom}

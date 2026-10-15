@@ -67,11 +67,38 @@ export const RoomCalendarModal: React.FC<Props> = ({
   const [isSubmittingClean, setIsSubmittingClean] = useState(false);
   const [cleanSuccessToast, setCleanSuccessToast] = useState<string | null>(null);
 
+  // Get all AC cleanings for this room, sorted latest first
+  const roomCleanings = useMemo(() => {
+    if (!room) return [];
+    return logs
+      .filter((l) => l.room_id === room.id && l.action_type === 'ac_cleaning')
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  }, [logs, room]);
+
+  const latestCleaning = roomCleanings[0];
+
+  // Dynamically compute effective AC days used based on latest cleaning date and occupancies
+  const effectiveAcDays = useMemo(() => {
+    if (!room) return 0;
+    const latestDate = latestCleaning?.date || room.last_ac_cleaned_date;
+    if (!latestDate) {
+      return occupancies.filter((o) => o.room_id === room.id && o.is_occupied).length;
+    }
+    return occupancies.filter(
+      (o) => o.room_id === room.id && o.is_occupied && o.date > latestDate
+    ).length;
+  }, [occupancies, room, latestCleaning?.date]);
+
   useEffect(() => {
-    setShowCleanForm(false);
-    setCleanSuccessToast(null);
-    setCleanDate(today);
-  }, [room?.id, isOpen, today]);
+    if (isOpen && room) {
+      setShowCleanForm(false);
+      setCleanSuccessToast(null);
+      setCleanDate(today);
+      setViewYear(todayYear);
+      setViewMonth(todayMonth);
+      setTapMode('occupancy');
+    }
+  }, [room, isOpen, today, todayYear, todayMonth]);
 
   // Early return if not open
   if (!isOpen || !room) return null;
@@ -110,24 +137,6 @@ export const RoomCalendarModal: React.FC<Props> = ({
       (o) => o.room_id === room.id && o.date === dateStr && o.is_occupied
     );
   };
-
-  // Get all AC cleanings for this room, sorted latest first
-  const roomCleanings = logs
-    .filter((l) => l.room_id === room.id && l.action_type === 'ac_cleaning')
-    .sort((a, b) => b.date.localeCompare(a.date));
-
-  const latestCleaning = roomCleanings[0];
-
-  // Dynamically compute effective AC days used based on latest cleaning date and occupancies
-  const effectiveAcDays = useMemo(() => {
-    const latestDate = latestCleaning?.date || room.last_ac_cleaned_date;
-    if (!latestDate) {
-      return occupancies.filter((o) => o.room_id === room.id && o.is_occupied).length;
-    }
-    return occupancies.filter(
-      (o) => o.room_id === room.id && o.is_occupied && o.date > latestDate
-    ).length;
-  }, [occupancies, room.id, latestCleaning?.date, room.last_ac_cleaned_date]);
 
   const isCritical = effectiveAcDays >= 90;
   const isWarning = effectiveAcDays >= 75 && effectiveAcDays < 90;
