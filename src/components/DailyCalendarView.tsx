@@ -26,16 +26,18 @@ export const DailyCalendarView: React.FC<Props> = ({
 
   const today = getTodayDateString();
 
-  // Parse current selected year and month
-  const [year, month] = selectedDate.split('-').map(Number);
+  // Parse current selected year and month safely
+  const dateParts = (selectedDate || today).split('-').map(Number);
+  const year = dateParts[0] || new Date().getFullYear();
+  const month = dateParts[1] || (new Date().getMonth() + 1);
 
   // Helper to change day by offset
   const shiftDay = (offset: number) => {
-    const cur = new Date(selectedDate);
-    cur.setDate(cur.getDate() + offset);
-    const y = cur.getFullYear();
-    const m = String(cur.getMonth() + 1).padStart(2, '0');
-    const d = String(cur.getDate()).padStart(2, '0');
+    const base = selectedDate ? new Date(selectedDate) : new Date();
+    base.setDate(base.getDate() + offset);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, '0');
+    const d = String(base.getDate()).padStart(2, '0');
     setSelectedDate(`${y}-${m}-${d}`);
   };
 
@@ -57,9 +59,9 @@ export const DailyCalendarView: React.FC<Props> = ({
     }
   };
 
-  // Generate days in month for matrix view
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const daysList = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  // Generate days in month for matrix view safely
+  const daysInMonth = new Date(year, month, 0).getDate() || 31;
+  const daysList = Array.from({ length: Math.max(1, daysInMonth) }, (_, i) => i + 1);
 
   if (rooms.length === 0) {
     return (

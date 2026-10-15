@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resort-keeper-v4';
+const CACHE_NAME = 'resort-keeper-v5';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -65,23 +65,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Navigation / HTML requests -> Stale-While-Revalidate (opens shell in < 30ms)
+  // 2. Navigation / HTML requests -> Network-First (always fresh, fallback to offline cache)
   if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
-      caches.match('./index.html').then((cachedHtml) => {
-        const fetchPromise = fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              const clone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', clone));
-            }
-            return networkResponse;
-          })
-          .catch(() => cachedHtml);
-
-        // Serve cached version immediately if present, otherwise wait for network
-        return cachedHtml || fetchPromise;
-      })
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }
