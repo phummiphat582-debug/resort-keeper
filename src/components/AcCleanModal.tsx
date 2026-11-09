@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Room } from '../types';
-import { resetRoomAcCleaning, getTodayDateString } from '../lib/dataService';
-import { X, CheckCircle, Sparkles, Wind, Calendar } from 'lucide-react';
+import { resetRoomAcCleaning, cancelAcCleaning, getTodayDateString, formatThaiDate } from '../lib/dataService';
+import { X, CheckCircle, Sparkles, Wind, Calendar, RotateCcw } from 'lucide-react';
 
 interface Props {
   room: Room | null;
@@ -16,6 +16,7 @@ export const AcCleanModal: React.FC<Props> = ({ room, initialDate, onClose, onSu
   const [cost, setCost] = useState('500');
   const [notes, setNotes] = useState('ล้างแอร์รอบ 90 วัน ล้างฟิลเตอร์และคอยล์เย็นเรียบร้อย');
   const [loading, setLoading] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (initialDate) {
@@ -47,6 +48,27 @@ export const AcCleanModal: React.FC<Props> = ({ room, initialDate, onClose, onSu
     }
   };
 
+  const handleCancelLastClean = async () => {
+    if (!room.last_ac_cleaned_date) return;
+    if (
+      !confirm(
+        `คุณต้องการยกเลิกวันที่ล้างแอร์ (${formatThaiDate(room.last_ac_cleaned_date)}) ของ ${room.name} ใช่หรือไม่?\n\n(กรณีบันทึกผิดวัน ระบบจะลบประวัติการล้างแอร์รอบนี้ และคำนวณวันใช้งานแอร์สะสมกลับคืนให้อัตโนมัติ)`
+      )
+    ) {
+      return;
+    }
+    setCancelling(true);
+    try {
+      await cancelAcCleaning(room.id);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการยกเลิกวันที่ล้างแอร์');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -67,6 +89,26 @@ export const AcCleanModal: React.FC<Props> = ({ room, initialDate, onClose, onSu
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Banner if there is already a last cleaned date */}
+          {room.last_ac_cleaned_date && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-center justify-between gap-2">
+              <div>
+                <span className="font-bold block text-amber-950">ล้างแอร์ล่าสุด:</span>
+                <span className="text-amber-800 font-semibold">{formatThaiDate(room.last_ac_cleaned_date)}</span>
+              </div>
+              <button
+                type="button"
+                disabled={cancelling || loading}
+                onClick={handleCancelLastClean}
+                className="px-2.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-lg border border-red-300 text-[11px] flex items-center gap-1 transition active:scale-95 shrink-0"
+                title="ยกเลิกวันที่ล้างแอร์นี้กรณีลงผิดวัน"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>{cancelling ? 'กำลังยกเลิก...' : 'ยกเลิกวันที่ล้าง (ลงผิดวัน)'}</span>
+              </button>
+            </div>
+          )}
+
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 flex items-start gap-2.5">
             <Wind className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <span>
@@ -127,11 +169,11 @@ export const AcCleanModal: React.FC<Props> = ({ room, initialDate, onClose, onSu
               onClick={onClose}
               className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition"
             >
-              ยกเลิก
+              ปิดหน้าต่าง
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || cancelling}
               className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-md transition flex items-center justify-center gap-1.5"
             >
               <CheckCircle className="w-4 h-4" />

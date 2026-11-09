@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Room } from '../types';
 import { formatThaiDate } from '../lib/dataService';
-import { Wind, AlertTriangle, CheckCircle2, Clock, Sparkles, Filter, Calendar, Plus } from 'lucide-react';
+import { Wind, AlertTriangle, CheckCircle2, Clock, Sparkles, Filter, Calendar, Plus, RotateCcw } from 'lucide-react';
 
 interface Props {
   rooms: Room[];
@@ -9,6 +9,7 @@ interface Props {
   onOpenRoomCalendar: (room: Room) => void;
   onOpenRoomModal: () => void;
   onFilterHistoryByRoom?: (roomId: string) => void;
+  onCancelCleaning?: (room: Room) => void;
 }
 
 export const AcTrackerView: React.FC<Props> = ({
@@ -16,6 +17,7 @@ export const AcTrackerView: React.FC<Props> = ({
   onOpenCleanModal,
   onOpenRoomCalendar,
   onOpenRoomModal,
+  onCancelCleaning,
 }) => {
   const [filter, setFilter] = useState<'all' | 'critical' | 'warning' | 'good'>('all');
 
@@ -258,10 +260,24 @@ export const AcTrackerView: React.FC<Props> = ({
                 </div>
 
                 {/* Last Cleaned Info */}
-                <div className="text-xs text-slate-500 flex items-center gap-1.5 mb-4">
-                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                  <span>ล้างครั้งล่าสุด: </span>
-                  <b className="text-slate-700">{formatThaiDate(room.last_ac_cleaned_date)}</b>
+                <div className="text-xs text-slate-500 flex items-center justify-between gap-1.5 mb-4">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="shrink-0">ล้างล่าสุด:</span>
+                    <b className="text-slate-800 truncate">{formatThaiDate(room.last_ac_cleaned_date)}</b>
+                  </div>
+
+                  {room.last_ac_cleaned_date && onCancelCleaning && (
+                    <button
+                      type="button"
+                      onClick={() => onCancelCleaning(room)}
+                      className="text-[11px] text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200/80 px-2 py-0.5 rounded-lg font-semibold transition shrink-0 flex items-center gap-1 active:scale-95"
+                      title="ยกเลิกวันที่ล้างแอร์ล่าสุดกรณีลงผิดวัน"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>ยกเลิกวันที่ล้าง</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

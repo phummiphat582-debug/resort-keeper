@@ -1,22 +1,44 @@
 import React, { useState } from 'react';
 import type { MaintenanceLog, Room } from '../types';
-import { formatThaiDate } from '../lib/dataService';
-import { Wrench, Plus, Search, Lightbulb, Wind, Droplets, Bed, Hammer, User, Calendar } from 'lucide-react';
+import { formatThaiDate, deleteMaintenanceLog } from '../lib/dataService';
+import { Wrench, Plus, Search, Lightbulb, Wind, Droplets, Bed, Hammer, User, Calendar, Trash2 } from 'lucide-react';
 
 interface Props {
   logs: MaintenanceLog[];
   rooms: Room[];
   onOpenAddModal: () => void;
+  onDataChanged?: () => void;
 }
 
-export const MaintenanceLogView: React.FC<Props> = ({ logs, rooms, onOpenAddModal }) => {
+export const MaintenanceLogView: React.FC<Props> = ({ logs, rooms, onOpenAddModal, onDataChanged }) => {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const getRoomName = (roomId: string) => {
     const room = rooms.find((r) => r.id === roomId);
     return room ? room.name : 'ไม่ระบุบ้าน';
+  };
+
+  const handleDeleteLog = async (log: MaintenanceLog) => {
+    const isAc = log.action_type === 'ac_cleaning';
+    const roomName = getRoomName(log.room_id);
+    const confirmMsg = isAc
+      ? `คุณต้องการยกเลิก/ลบประวัติการล้างแอร์วันที่ ${formatThaiDate(log.date)} ของ "${roomName}" ใช่หรือไม่?\n\n(กรณีลงผิดวัน ระบบจะลบประวัตินี้และคำนวณวันใช้งานแอร์สะสมกลับคืนให้อัตโนมัติ)`
+      : `คุณต้องการลบประวัติงานซ่อม "${log.description}" ของ "${roomName}" ใช่หรือไม่?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setDeletingId(log.id);
+    try {
+      await deleteMaintenanceLog(log.id, log.room_id);
+      onDataChanged?.();
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการลบรายการ');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const getCategoryMeta = (cat: string) => {
@@ -164,9 +186,21 @@ export const MaintenanceLogView: React.FC<Props> = ({ logs, rooms, onOpenAddModa
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1 text-xs text-slate-500">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{formatThaiDate(log.date)}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{formatThaiDate(log.date)}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={deletingId === log.id}
+                      onClick={() => handleDeleteLog(log)}
+                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition active:scale-95"
+                      title={log.action_type === 'ac_cleaning' ? 'ยกเลิก/ลบประวัติล้างแอร์นี้ (กรณีลงผิดวัน)' : 'ลบรายการนี้'}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 

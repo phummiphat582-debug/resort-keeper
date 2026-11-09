@@ -7,6 +7,8 @@ import {
   getLocalRooms,
   getLocalOccupancies,
   getLocalLogs,
+  cancelAcCleaning,
+  formatThaiDate,
 } from './lib/dataService';
 import { getSupabase } from './lib/supabase';
 import { Navbar } from './components/Navbar';
@@ -46,6 +48,23 @@ export function App() {
   const handleOpenCleanModal = (room: Room, date?: string) => {
     setCleaningRoom(room);
     setCleaningInitialDate(date);
+  };
+
+  const handleCancelCleaning = async (room: Room) => {
+    if (!room.last_ac_cleaned_date) return;
+    if (
+      window.confirm(
+        `คุณต้องการยกเลิกวันที่ล้างแอร์ (${formatThaiDate(room.last_ac_cleaned_date)}) ของ "${room.name}" ใช่หรือไม่?\n\n(กรณีลงผิดวัน ระบบจะลบประวัติการล้างแอร์รอบนี้ และคำนวณวันใช้งานแอร์สะสมกลับคืนให้อัตโนมัติ)`
+      )
+    ) {
+      try {
+        await cancelAcCleaning(room.id);
+        await loadData();
+        showToast(`✓ ยกเลิกวันที่ล้างแอร์ของ ${room.name} และคืนค่าตัวนับเรียบร้อยแล้ว`);
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการยกเลิกวันที่ล้างแอร์');
+      }
+    }
   };
 
   // Success Toast
@@ -198,6 +217,7 @@ export function App() {
                 onOpenCleanModal={(room) => handleOpenCleanModal(room)}
                 onOpenRoomCalendar={(room) => setCalendarRoom(room)}
                 onOpenRoomModal={() => setIsRoomModalOpen(true)}
+                onCancelCleaning={handleCancelCleaning}
               />
             )}
 
@@ -209,6 +229,7 @@ export function App() {
                   setRepairPresetRoomId(undefined);
                   setIsAddRepairOpen(true);
                 }}
+                onDataChanged={loadData}
               />
             )}
 

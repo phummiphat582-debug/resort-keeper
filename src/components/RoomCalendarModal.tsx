@@ -4,7 +4,7 @@ import {
   toggleRoomOccupancy,
   getTodayDateString,
   formatThaiDate,
-  deleteMaintenanceLog,
+  cancelAcCleaning,
   resetRoomAcCleaning,
 } from '../lib/dataService';
 import {
@@ -16,10 +16,10 @@ import {
   Check,
   Clock,
   Calendar,
-  Trash2,
   History,
   CheckCircle2,
   Loader2,
+  RotateCcw,
 } from 'lucide-react';
 
 interface Props {
@@ -183,13 +183,46 @@ export const RoomCalendarModal: React.FC<Props> = ({
     );
   };
 
+  // Delete or cancel an AC cleaning record
+  const handleDeleteCleaning = async (logId?: string, logDate?: string) => {
+    const dateFormatted = logDate ? formatThaiDate(logDate) : '';
+    if (
+      confirm(
+        `คุณต้องการยกเลิกการบันทึกล้างแอร์${dateFormatted ? ` วันที่ ${dateFormatted}` : ''} ของ ${room.name} ใช่หรือไม่?\n\n(กรณีบันทึกผิดวัน ระบบจะลบประวัติการล้างแอร์รอบนี้ และคำนวณวันใช้งานแอร์สะสมกลับคืนให้อัตโนมัติ)`
+      )
+    ) {
+      if (logId) setDeletingLogId(logId);
+      try {
+        await cancelAcCleaning(room.id, { logId, date: logDate });
+        setCleanSuccessToast(`✓ ยกเลิกวันที่ล้างแอร์ ${dateFormatted} เรียบร้อยแล้ว (คืนค่าตัวนับวันใช้งานแอร์สำเร็จ)`);
+        setTimeout(() => setCleanSuccessToast(null), 4000);
+        onDataChanged();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการยกเลิกรายการ');
+      } finally {
+        setDeletingLogId(null);
+      }
+    }
+  };
+
   // Toggle day occupancy or trigger inline AC clean form based on tapMode
   const handleDayClick = async (dayNumber: number) => {
     const padMonth = String(viewMonth).padStart(2, '0');
     const padDay = String(dayNumber).padStart(2, '0');
     const dateStr = `${viewYear}-${padMonth}-${padDay}`;
+    const existingCleanLog = getCleaningLogOn(dateStr);
 
     if (tapMode === 'clean') {
+      if (existingCleanLog) {
+        if (
+          confirm(
+            `วันที่ ${formatThaiDate(dateStr)} มีบันทึกล้างแอร์อยู่แล้ว คุณต้องการยกเลิกการล้างแอร์ของวันนี้ (กรณีลงผิดวัน) ใช่หรือไม่?`
+          )
+        ) {
+          await handleDeleteCleaning(existingCleanLog.id, existingCleanLog.date);
+          return;
+        }
+      }
       handleOpenInlineCleanForm(dateStr);
       return;
     }
@@ -202,21 +235,6 @@ export const RoomCalendarModal: React.FC<Props> = ({
       console.error('Error toggling occupancy:', err);
     } finally {
       setTogglingDate(null);
-    }
-  };
-
-  // Delete an AC cleaning record
-  const handleDeleteCleaning = async (logId: string, logDate: string) => {
-    if (confirm(`คุณต้องการลบประวัติการล้างแอร์วันที่ ${formatThaiDate(logDate)} ใช่หรือไม่?\n(ระบบจะคำนวณวันใช้งานแอร์ใหม่ตามวันที่ล้างครั้งก่อนหน้า)`)) {
-      setDeletingLogId(logId);
-      try {
-        await deleteMaintenanceLog(logId, room.id);
-        onDataChanged();
-      } catch (err) {
-        alert('เกิดข้อผิดพลาดในการลบรายการ');
-      } finally {
-        setDeletingLogId(null);
-      }
     }
   };
 
@@ -280,6 +298,22 @@ export const RoomCalendarModal: React.FC<Props> = ({
                   <p className="text-[10px] text-blue-800 mt-0.5">
                     โดย: {latestCleaning.technician_name} {latestCleaning.cost > 0 && `(฿${latestCleaning.cost} บ.)`}
                   </p>
+                )}
+                {(latestCleaning || room.last_ac_cleaned_date) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDeleteCleaning(
+                        latestCleaning?.id,
+                        latestCleaning?.date || room.last_ac_cleaned_date || undefined
+                      )
+                    }
+                    className="mt-1.5 text-[11px] text-red-600 hover:text-red-700 bg-red-100/70 hover:bg-red-200/80 px-2 py-0.5 rounded-lg font-bold border border-red-200 inline-flex items-center gap-1 transition active:scale-95"
+                    title="ยกเลิกวันที่ล้างแอร์ล่าสุดนี้ (กรณีลงผิดวัน)"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>ยกเลิกวันที่ล้างนี้ (ลงผิดวัน)</span>
+                  </button>
                 )}
               </div>
 
@@ -645,11 +679,19 @@ export const RoomCalendarModal: React.FC<Props> = ({
                   {/* Middle: Cleaning Badge if AC was cleaned on this day */}
                   {cleaningLog && (
                     <div
-                      className="text-[9px] bg-blue-600 text-white rounded px-1 py-0.5 truncate font-bold flex items-center gap-0.5 shadow-xs"
-                      title={`ล้างแอร์วันที่ ${formatThaiDate(cleaningLog.date)} โดย ${cleaningLog.technician_name}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCleaning(cleaningLog.id, cleaningLog.date);
+                      }}
+                      className="text-[9px] bg-blue-600 hover:bg-red-600 text-white rounded px-1 py-0.5 truncate font-bold flex items-center justify-between gap-0.5 shadow-xs transition group/clean cursor-pointer"
+                      title={`ล้างแอร์วันที่ ${formatThaiDate(cleaningLog.date)} โดย ${cleaningLog.technician_name} (คลิกเพื่อยกเลิกกรณีลงผิดวัน)`}
                     >
-                      <Sparkles className="w-2.5 h-2.5 text-yellow-300 shrink-0" />
-                      <span className="truncate">ล้างแอร์</span>
+                      <div className="flex items-center gap-0.5 truncate">
+                        <Sparkles className="w-2.5 h-2.5 text-yellow-300 shrink-0" />
+                        <span className="truncate group-hover/clean:hidden">ล้างแอร์</span>
+                        <span className="truncate hidden group-hover/clean:inline text-white">ยกเลิก</span>
+                      </div>
+                      <X className="w-2.5 h-2.5 shrink-0 opacity-80 group-hover/clean:opacity-100" />
                     </div>
                   )}
 
@@ -748,10 +790,11 @@ export const RoomCalendarModal: React.FC<Props> = ({
                         type="button"
                         onClick={() => handleDeleteCleaning(cl.id, cl.date)}
                         disabled={isDeleting}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition shrink-0"
-                        title="ลบรายการนี้"
+                        className="px-2.5 py-1 text-red-600 hover:text-white hover:bg-red-600 bg-red-50 border border-red-200/90 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition shrink-0 active:scale-95"
+                        title="ยกเลิกการล้างแอร์รอบนี้ (กรณีลงผิดวัน)"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>ยกเลิกวันที่ล้าง</span>
                       </button>
                     </div>
                   );

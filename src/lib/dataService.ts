@@ -358,6 +358,16 @@ export async function resetRoomAcCleaning(
         .single();
       if (roomErr) throw roomErr;
 
+      // Update local cache for instant UI response
+      const cachedLogs = getLocalLogs();
+      cachedLogs.unshift(logData as MaintenanceLog);
+      saveLocalLogs(cachedLogs);
+
+      const cachedRooms = getLocalRooms().map((r) =>
+        r.id === roomId && updatedRoom ? (updatedRoom as Room) : r
+      );
+      saveLocalRooms(cachedRooms);
+
       return { updatedRoom: updatedRoom as Room, newLog: logData as MaintenanceLog };
     } catch (err) {
       console.error('Supabase reset AC error, falling back to local:', err);
@@ -430,14 +440,25 @@ export async function deleteMaintenanceLog(logId: string, roomId?: string): Prom
 
         const { count } = await query;
 
-        await supabase
+        const { data: updatedRoom } = await supabase
           .from('rooms')
           .update({
             ac_days_used: count || 0,
             last_ac_cleaned_date: latestCleanDate,
           })
-          .eq('id', roomId);
+          .eq('id', roomId)
+          .select()
+          .single();
+
+        if (updatedRoom) {
+          const cachedRooms = getLocalRooms().map((r) => (r.id === roomId ? (updatedRoom as Room) : r));
+          saveLocalRooms(cachedRooms);
+        }
       }
+
+      const cachedLogs = getLocalLogs().filter((l) => l.id !== logId);
+      saveLocalLogs(cachedLogs);
+
       return true;
     } catch (err) {
       console.error('Supabase delete log error:', err);
@@ -469,6 +490,143 @@ export async function deleteMaintenanceLog(logId: string, roomId?: string): Prom
   }
 
   return true;
+}
+
+// Cancel AC cleaning (e.g., if recorded by mistake / ลงผิดวัน)
+export async function cancelAcCleaning(
+  roomId: string,
+  options?: { logId?: string; date?: string }
+): Promise<{ success: boolean; updatedRoom?: Room }> {
+  const supabase = getSupabase();
+  const logId = options?.logId;
+  const date = options?.date;
+
+  if (supabase) {
+    try {
+      // 1. Delete matching maintenance log
+      if (logId) {
+        await supabase.from('maintenance_logs').delete().eq('id', logId);
+      } else if (date) {
+        await supabase
+          .from('maintenance_logs')
+          .delete()
+          .eq('room_id', roomId)
+          .eq('action_type', 'ac_cleaning')
+          .eq('date', date);
+      } else {
+        const { data: latestLogs } = await supabase
+          .from('maintenance_logs')
+          .select('id')
+          .eq('room_id', roomId)
+          .eq('action_type', 'ac_cleaning')
+          .order('date', { ascending: false })
+          .limit(1);
+
+        if (latestLogs && latestLogs.length > 0) {
+          await supabase.from('maintenance_logs').delete().eq('id', latestLogs[0].id);
+        }
+      }
+
+      // 2. Query remaining AC cleanings
+      const { data: remainingCleanings } = await supabase
+        .from('maintenance_logs')
+        .select('date')
+        .eq('room_id', roomId)
+        .eq('action_type', 'ac_cleaning')
+        .order('date', { ascending: false });
+
+      const newLatestDate =
+        remainingCleanings && remainingCleanings.length > 0
+          ? remainingCleanings[0].date
+          : null;
+
+      // 3. Recount occupied days
+      let query = supabase
+        .from('occupancies')
+        .select('*', { count: 'exact', head: true })
+        .eq('room_id', roomId)
+        .eq('is_occupied', true);
+
+      if (newLatestDate) {
+        query = query.gt('date', newLatestDate);
+      }
+
+      const { count } = await query;
+      const newAcDays = count || 0;
+
+      // 4. Update room record
+      const { data: updatedRoomData, error: roomErr } = await supabase
+        .from('rooms')
+        .update({
+          ac_days_used: newAcDays,
+          last_ac_cleaned_date: newLatestDate,
+        })
+        .eq('id', roomId)
+        .select()
+        .single();
+
+      if (roomErr) throw roomErr;
+
+      // 5. Update local cache
+      const localLogs = getLocalLogs().filter((l) => {
+        if (logId) return l.id !== logId;
+        if (date) return !(l.room_id === roomId && l.action_type === 'ac_cleaning' && l.date === date);
+        return true;
+      });
+      saveLocalLogs(localLogs);
+
+      const localRooms = getLocalRooms().map((r) =>
+        r.id === roomId && updatedRoomData ? (updatedRoomData as Room) : r
+      );
+      saveLocalRooms(localRooms);
+
+      return { success: true, updatedRoom: updatedRoomData as Room };
+    } catch (err) {
+      console.error('Supabase cancel AC error, falling back to local:', err);
+    }
+  }
+
+  // Local Storage fallback
+  let localLogs = getLocalLogs();
+  if (logId) {
+    localLogs = localLogs.filter((l) => l.id !== logId);
+  } else if (date) {
+    const idx = localLogs.findIndex(
+      (l) => l.room_id === roomId && l.action_type === 'ac_cleaning' && l.date === date
+    );
+    if (idx !== -1) localLogs.splice(idx, 1);
+  } else {
+    const latestIdx = localLogs.findIndex(
+      (l) => l.room_id === roomId && l.action_type === 'ac_cleaning'
+    );
+    if (latestIdx !== -1) localLogs.splice(latestIdx, 1);
+  }
+  saveLocalLogs(localLogs);
+
+  const roomCleanings = localLogs
+    .filter((l) => l.room_id === roomId && l.action_type === 'ac_cleaning')
+    .sort((a, b) => b.date.localeCompare(a.date));
+  const newLatestDate = roomCleanings[0]?.date || null;
+
+  const occupancies = getLocalOccupancies();
+  const acDays = occupancies.filter(
+    (o) => o.room_id === roomId && o.is_occupied && (!newLatestDate || o.date > newLatestDate)
+  ).length;
+
+  const localRooms = getLocalRooms();
+  const rIdx = localRooms.findIndex((r) => r.id === roomId);
+  let updatedRoom: Room | undefined;
+  if (rIdx !== -1) {
+    localRooms[rIdx] = {
+      ...localRooms[rIdx],
+      ac_days_used: acDays,
+      last_ac_cleaned_date: newLatestDate,
+    };
+    saveLocalRooms(localRooms);
+    updatedRoom = localRooms[rIdx];
+  }
+
+  return { success: true, updatedRoom };
 }
 
 // Add a maintenance/repair log
